@@ -23,14 +23,16 @@ pub enum SearchAllTranslationsFilesError {
 pub fn search_recursive_regex(
     root_path: &Path,
     regex_pattern: &str,
+    paths_to_skip: &[String],
 ) -> Result<Vec<Box<PathBuf>>, SearchAllTranslationsFilesError> {
     let regex = Regex::new(regex_pattern)
         .map_err(|e| SearchAllTranslationsFilesError::InvalidRegexPattern(regex_pattern.to_string(), e.to_string()))?;
+    println!("Regex : {}", regex_pattern);
 
     let regex = Arc::new(regex);
     let results = Arc::new(parking_lot::Mutex::new(Vec::new()));
 
-    search_recursive_parallel(root_path, regex, results.clone())?;
+    search_recursive_parallel(root_path, regex, paths_to_skip, results.clone())?;
 
     let final_results = results.lock().clone();
 
@@ -40,6 +42,7 @@ pub fn search_recursive_regex(
 fn search_recursive_parallel(
     path: &Path,
     regex: Arc<Regex>,
+    paths_to_skip: &[String],
     results: Arc<parking_lot::Mutex<Vec<Box<PathBuf>>>>,
 ) -> Result<(), SearchAllTranslationsFilesError> {
     let entries = fs::read_dir(path)
@@ -54,7 +57,7 @@ fn search_recursive_parallel(
         .collect();
 
     paths.par_iter().for_each(|entry_path| {
-        process_entry(&entry_path, regex.clone(), results.clone()).expect(&format!("Unable to process: {}", entry_path.to_string_lossy()));
+        process_entry(&entry_path, regex.clone(), paths_to_skip, results.clone()).expect(&format!("Unable to process: {}", entry_path.to_string_lossy()));
     });
 
     Ok(())
@@ -63,27 +66,27 @@ fn search_recursive_parallel(
 fn process_entry(
     path: &Path,
     regex: Arc<Regex>,
-    results: Arc<parking_lot::Mutex<Vec<Box<PathBuf>>>>,
+    paths_to_skip: &[String],
+    results: Arc<parking_lot::Mutex<Vec<Box<PathBuf>>>>
 ) -> Result<(), SearchAllTranslationsFilesError> {
     if path.is_dir() {
         // Skip hidden directories and common non-source directories
-        if should_skip_directory(path) {
+        if should_skip_directory(path, paths_to_skip) {
+            println!("Skip directory : {}", path.to_string_lossy());
             return Ok(());
         }
-        search_recursive_parallel(path, regex, results)?;
+        println!("Pass directory : {}", path.to_string_lossy());
+        search_recursive_parallel(path, regex, paths_to_skip, results)?;
     } else if path.is_file() && regex.is_match(path.file_name().unwrap().to_string_lossy().as_ref()) {
         results.lock().push(Box::new(path.to_owned()))
     }
     Ok(())
 }
 
-fn should_skip_directory(path: &Path) -> bool {
+fn should_skip_directory(path: &Path, paths_to_skip: &[String]) -> bool {
     if let Some(file_name) = path.file_name() {
         let name = file_name.to_string_lossy();
-        matches!(
-            name.as_ref(),
-            ".git" | "node_modules" | "target" | ".idea" | ".vscode" | "dist" | "build"
-        )
+        paths_to_skip.contains(&name.to_string())
     } else {
         false
     }

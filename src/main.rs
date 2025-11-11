@@ -4,76 +4,96 @@ mod map_translations_by_key;
 mod entities;
 mod map_translations_by_project;
 mod analyse_project_duplication;
+mod settings;
 
-use sysinfo::{Pid, System};
-use std::path::Path;
-use std::time::Instant;
+use std::env;
+use std::error::Error;
+use std::path::{Path, PathBuf};
+use clap::{Parser, Subcommand};
+use thiserror::Error;
 use crate::analyse_project_duplication::{analyse_duplication, print_global_duplication_report};
 use crate::load_translations::load_translations;
 use crate::map_translations_by_key::map_translations_by_translation;
 use crate::map_translations_by_project::map_translations_by_project;
 use crate::search_recursive_regex::search_recursive_regex;
+use crate::settings::Settings;
 
-// Root project : /Users/tibs/Workspace/ovh/manager
-// Common translations : packages/manager/modules/common-translations
-// Module : packages/manager/modules/*/
-// Apps : packages/manager/apps/*/
+#[derive(Error, Debug)]
+pub enum CliError {
+    #[error("Customer {0} not found")]
+    CustomerNotFound(String),
 
-fn print_memory_usage() {
-    let mut sys = System::new_all();
-    sys.refresh_all();
-    let current_pid = Pid::from(std::process::id() as usize);
-    if let Some(process) = sys.process(current_pid) {
-        println!("\nMemory used: {} MB", process.memory() / 1024 / 1024);
-    }
+    #[error("Not implemented yet")]
+    NotImplementedYet(),
+
+    #[error("{0}")]
+    CommandNotExists(String),
 }
 
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    /// Sets a custom default root path
+    #[arg(long, value_name = "FILE")]
+    root_path: Option<PathBuf>,
+
+    /// Sets a custom config file
+    #[arg(long, value_name = "FILE")]
+    config_file_path: Option<PathBuf>,
+
+    /// Sets a custom package path folder as `packages/manager/apps/zimbra` or `packages/manager/modules/backup-agent`
+    #[arg(long, value_name = "FILE")]
+    package_path: Option<PathBuf>,
+
+
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Init invoices path
+    GlobalReport,
+}
+
+const DEFAULT_SETTINGS_PATH_FILE: &str = "settings.json";
+
 fn main() {
-    let start = Instant::now();
+    let cli = Cli::parse();
 
+    let current_dir = env::current_dir().unwrap();
+    let monorepo_path = cli.root_path.as_deref().unwrap_or(current_dir.as_path());
+    
+    println!("Root path : {}", monorepo_path.to_string_lossy());
+
+    let config_file_path = cli.config_file_path.as_deref().unwrap_or(Path::new(DEFAULT_SETTINGS_PATH_FILE));
+    
+    let config = settings::get_settings(config_file_path).unwrap_or(Settings::default());
+
+
+    let result: Result<(), Box<dyn Error + Sync + Send + 'static>> = match &cli.command {
+        Some(Commands::GlobalReport) => global_report_all(monorepo_path, config),
+        None => Err(Box::new(CliError::CommandNotExists("The option is not correct. Try to get help".to_string())))
+    };
+
+    result.unwrap_or_else(|error| println!("Error : {}", error));
+}
+
+
+
+fn global_report_all(monorepo_path: &Path, config: Settings) -> Result<(), Box<dyn Error + Sync + Send + 'static>> {
     let matches = search_recursive_regex(
-        Path::new("/Users/tibs/Workspace/ovh/manager"),
-        r#"^Messages_fr_FR\.json$"#,
+        monorepo_path,
+        &config.translation_file_regex,
+        &config.skip_directories
     ).unwrap();
-
-    println!("Files founds : {}", matches.len());
-
-    let duration = start.elapsed();
-    println!("File search Execution time: {:.2}ms", duration.as_secs_f64() * 1000.0);
-
-    let start_loading = Instant::now();
+    println!("Found {} files", matches.len());
 
     let translations = load_translations(matches).expect("Cannot map translations");
 
-    let duration_loading = start_loading.elapsed();
-    println!("Loading Execution time: {:.2}ms", duration_loading.as_secs_f64() * 1000.0);
-
-    println!("Translations founds : {}", translations.len());
-
-    print_memory_usage();
-
-    let start_mapping = Instant::now();
-
     let translation_mapped = map_translations_by_translation(&translations);
 
-    let duration_mapping = start_mapping.elapsed();
-    println!("Mapping Execution time: {:.2}ms", duration_mapping.as_secs_f64() * 1000.0);
-
-
-    print_memory_usage();
-
-    let start_project_mapping = Instant::now();
-
     let mapped_by_project = map_translations_by_project(&translations);
-
-    println!("Project founded : {}", mapped_by_project.len());
-
-    let duration_project_mapping = start_project_mapping.elapsed();
-    println!("Project Mapping Execution time: {:.2}ms", duration_project_mapping.as_secs_f64() * 1000.0);
-
-    print_memory_usage();
-
-    let start_analyse_project = Instant::now();
 
     for project_path in mapped_by_project.keys() {
         println!("Analyse project : {}", project_path);
@@ -81,13 +101,5 @@ fn main() {
         print_global_duplication_report(&reports_duplication);
     }
 
-    let duration_analyse_project = start_analyse_project.elapsed();
-    println!("Project Analyse Execution time: {:.2}ms", duration_analyse_project.as_secs_f64() * 1000.0);
-
-    let duration_total = start.elapsed();
-    println!("Total Execution time: {:.2}ms", duration_total.as_secs_f64() * 1000.0);
-
-    print_memory_usage();
-
-
+    Ok(())
 }

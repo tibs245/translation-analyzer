@@ -25,7 +25,7 @@ pub fn map_translations_by_project(
 
 
 static PROJECT_PATH_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"(/manager/packages/manager/(apps|modules)/[^/]+)").unwrap()
+    Regex::new(r"(packages/manager/(apps|modules)/[^/]+)").unwrap()
 });
 
 fn determinate_project_path(path: &str) -> Option<(PackageType, String)> {
