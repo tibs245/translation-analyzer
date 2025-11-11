@@ -7,6 +7,7 @@ mod analyse_project_duplication;
 mod settings;
 mod get_translation_for_project;
 
+use std::collections::HashSet;
 use std::env;
 use std::error::Error;
 use std::path::{Path, PathBuf};
@@ -16,7 +17,7 @@ use crate::analyse_project_duplication::{analyse_duplication, print_global_dupli
 use crate::get_translation_for_project::get_translations_for_project;
 use crate::load_translations::load_translations;
 use crate::map_translations_by_key::map_translations_by_translation;
-use crate::map_translations_by_project::map_translations_by_project;
+use crate::map_translations_by_project::{get_package_path, map_translations_by_project};
 use crate::search_recursive_regex::search_recursive_regex;
 use crate::settings::Settings;
 
@@ -50,7 +51,12 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Init invoices path
-    GlobalReport {    
+    GlobalReport {
+        /// Sets a custom package path folder as `packages/manager/apps/zimbra` or `packages/manager/modules/backup-agent`
+        #[arg(long)]
+        package_path: Option<String>,
+    },
+    DetailedReport {
         /// Sets a custom package path folder as `packages/manager/apps/zimbra` or `packages/manager/modules/backup-agent`
         #[arg(long)]
         package_path: Option<String>,
@@ -77,6 +83,10 @@ fn main() {
             Some(package_path) => global_report_for_project(monorepo_path, config, package_path),
             None => global_report_all(monorepo_path, config),
         }
+        Some(Commands::DetailedReport { package_path }) => match package_path {
+            Some(package_path) => detailled_report_for_project(monorepo_path, config, package_path),
+            None => Err(Box::new(CliError::NotImplementedYet())),
+        }
         None => Err(Box::new(CliError::CommandNotExists("The option is not correct. Try to get help".to_string())))
     };
 
@@ -93,13 +103,13 @@ fn global_report_all(monorepo_path: &Path, config: Settings) -> Result<(), Box<d
 
     let translations = load_translations(matches).expect("Cannot map translations");
 
-    let translation_mapped = map_translations_by_translation(&translations);
+    let translations_indexed = map_translations_by_translation(&translations);
 
     let mapped_by_project = map_translations_by_project(&translations);
 
     for package_path in mapped_by_project.keys() {
         println!("Analyse project : {}", package_path);
-        let reports_duplication = analyse_duplication(&package_path, &mapped_by_project[package_path], &translation_mapped);
+        let reports_duplication = analyse_duplication(&package_path, &mapped_by_project[package_path], &translations_indexed);
         print_global_duplication_report(&reports_duplication);
     }
 
@@ -117,22 +127,63 @@ fn global_report_for_project(monorepo_path: &Path, config: Settings, package_pat
 
     let translations = load_translations(matches).expect("Cannot map translations");
 
-    let translation_mapped = map_translations_by_translation(&translations);
+    let translations_indexed = map_translations_by_translation(&translations);
 
     let project_translations = get_translations_for_project(package_path, &translations);
 
     println!("Analyse project : {}", package_path);
-    let reports_duplication = analyse_duplication(&package_path, &project_translations, &translation_mapped);
+    let reports_duplication = analyse_duplication(&package_path, &project_translations, &translations_indexed);
     print_global_duplication_report(&reports_duplication);
 
     Ok(())
 }
 
 
+fn detailled_report_for_project(monorepo_path: &Path, config: Settings, package_path: &str) -> Result<(), Box<dyn Error + Sync + Send + 'static>> {
+    let matches = search_recursive_regex(
+        monorepo_path,
+        &config.translation_file_regex,
+        &config.skip_directories
+    ).unwrap();
+    println!("Found {} files", matches.len());
 
-// println!("\n");
-// for duplication in duplications {
-//     println!("{} - {} - {:?}", duplication.translation.path.to_string_lossy(), duplication.translation.key, duplication.duplication_type)
-// }
-//
-// println!("\n\n");
+    let translations = load_translations(matches).expect("Cannot map translations");
+
+    let translations_indexed = map_translations_by_translation(&translations);
+
+    let project_translations = get_translations_for_project(package_path, &translations);
+
+    println!("Analyse project : {}", package_path);
+    let reports_duplication = analyse_duplication(&package_path, &project_translations, &translations_indexed);
+    print_global_duplication_report(&reports_duplication);
+
+    let mut displayed_translations: HashSet<String> = HashSet::new();
+
+    for duplication in reports_duplication {
+        if !displayed_translations.insert(duplication.translation.translations.clone()) {
+            continue;
+        }
+        println!("\n");
+        
+        let other_usages = translations_indexed.get(&duplication.translation.translations).unwrap();
+        
+        println!(" ========= Duplication seen : {} times, type : {:?} ==========", other_usages.len(), duplication.duplication_type);
+        println!(" ========= {} ==========", duplication.translation.translations);
+
+        for other_usage in other_usages {
+            println!("{} {} - {}", add_star_if_own_package(package_path, &other_usage.path.to_string_lossy().to_string()), other_usage.path.strip_prefix(&monorepo_path).unwrap().to_string_lossy(), other_usage.key);
+        }
+    }
+
+    println!("\n\n");
+
+    Ok(())
+}
+
+fn add_star_if_own_package(package_path: &str, translations_path: &str) -> String {
+    if get_package_path(translations_path) == package_path {
+        return "**".to_string()
+    }
+    
+    "".to_string()
+}

@@ -2,14 +2,14 @@ use std::collections::HashMap;
 use crate::entities::Translation;
 
 #[derive(PartialEq, Debug)]
-enum DuplicationType {
+pub enum DuplicationType {
     InterPackage,
     CommonTranslation,
     ExternalProjects
 }
 pub struct DuplicationReport<'a> {
-    translation: &'a Translation,
-    duplication_type: DuplicationType
+    pub(crate) translation: &'a Translation,
+    pub(crate) duplication_type: DuplicationType
 }
 
 pub fn analyse_duplication<'a>(project_path: &str, translations_to_check: &[&'a Translation], all_translations: &HashMap<String, Vec<&Translation>>) -> Vec<DuplicationReport<'a>> {

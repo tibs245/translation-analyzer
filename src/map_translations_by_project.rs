@@ -12,7 +12,7 @@ pub fn map_translations_by_project(
 
     translation.iter().for_each(|translation| {
         hashmap
-            .entry(get_project_path(translation.path.to_str().unwrap()))
+            .entry(get_package_path(translation.path.to_str().unwrap()))
             .or_insert_with(Vec::new)
             .push(translation);
     });
@@ -33,6 +33,6 @@ pub(crate) fn determinate_project_path_and_type(path: &str) -> Option<(PackageTy
     None
 }
 
-pub(crate) fn get_project_path(path: &str) -> String {
+pub(crate) fn get_package_path(path: &str) -> String {
     determinate_project_path_and_type(path).map_or_else(|| "unknown".to_string(), |package| package.1)
 }
