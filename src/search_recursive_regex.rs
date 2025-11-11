@@ -27,7 +27,6 @@ pub fn search_recursive_regex(
 ) -> Result<Vec<Box<PathBuf>>, SearchAllTranslationsFilesError> {
     let regex = Regex::new(regex_pattern)
         .map_err(|e| SearchAllTranslationsFilesError::InvalidRegexPattern(regex_pattern.to_string(), e.to_string()))?;
-    println!("Regex : {}", regex_pattern);
 
     let regex = Arc::new(regex);
     let results = Arc::new(parking_lot::Mutex::new(Vec::new()));
@@ -72,10 +71,8 @@ fn process_entry(
     if path.is_dir() {
         // Skip hidden directories and common non-source directories
         if should_skip_directory(path, paths_to_skip) {
-            println!("Skip directory : {}", path.to_string_lossy());
             return Ok(());
         }
-        println!("Pass directory : {}", path.to_string_lossy());
         search_recursive_parallel(path, regex, paths_to_skip, results)?;
     } else if path.is_file() && regex.is_match(path.file_name().unwrap().to_string_lossy().as_ref()) {
         results.lock().push(Box::new(path.to_owned()))
