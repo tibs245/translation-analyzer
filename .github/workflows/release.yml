@@ -40,12 +40,16 @@ jobs:
 
       - name: Create Release
         id: create_release
-        if: steps.check_release.outputs.exists == 'false'
         run: |
-          gh release create "v${{ steps.version.outputs.version }}" \
-            --title "Release v${{ steps.version.outputs.version }}" \
-            --notes "Release v${{ steps.version.outputs.version }}"
-          echo "release_created=true" >> $GITHUB_OUTPUT
+          if [ "${{ steps.check_release.outputs.exists }}" == "false" ]; then
+            gh release create "v${{ steps.version.outputs.version }}" \
+              --title "Release v${{ steps.version.outputs.version }}" \
+              --notes "Release v${{ steps.version.outputs.version }}"
+            echo "release_created=true" >> $GITHUB_OUTPUT
+          else
+            echo "release_created=false" >> $GITHUB_OUTPUT
+            echo "Release v${{ steps.version.outputs.version }} already exists"
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -80,12 +84,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          target: ${{ matrix.target }}
-          override: true
+          targets: ${{ matrix.target }}
 
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
