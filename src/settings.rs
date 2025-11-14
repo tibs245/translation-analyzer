@@ -1,6 +1,6 @@
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[derive(Serialize, Deserialize)]
@@ -32,8 +32,10 @@ pub fn get_settings(
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            common_translations_modules_path: vec!["packages/manager/modules/common-translations".to_string()],
-            translation_file_regex: r#"^Messages_fr_FR\.json$"# .to_string(),
+            common_translations_modules_path: vec![
+                "packages/manager/modules/common-translations".to_string(),
+            ],
+            translation_file_regex: r#"^Messages_fr_FR\.json$"#.to_string(),
             skip_directories: vec![
                 ".git".to_string(),
                 "node_modules".to_string(),
@@ -42,7 +44,8 @@ impl Default for Settings {
                 ".vscode".to_string(),
                 "dist".to_string(),
                 "build".to_string(),
-                "manager-tools".to_string()],
+                "manager-tools".to_string(),
+            ],
         }
     }
 }
