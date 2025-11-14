@@ -1,16 +1,10 @@
-mod analyse_project_duplication;
-mod commands;
-mod entities;
-mod get_translation_for_project;
-mod load_translations;
-mod map_translations_by_key;
-mod map_translations_by_project;
-mod search_recursive_regex;
-mod settings;
+// CLI binary - only compiled with 'cli' feature
+#![cfg(feature = "cli")]
 
-use crate::commands::detailed_report::detailed_report_for_project;
-use crate::commands::global_report::{global_report_all, global_report_for_project};
-use crate::settings::Settings;
+use translations_analyzer::{
+    Settings, detailed_report_for_project, global_report_all, global_report_for_project,
+};
+
 use clap::{Parser, Subcommand};
 use std::env;
 use std::error::Error;

@@ -1,4 +1,5 @@
 pub(crate) use crate::entities::Translation;
+#[cfg(not(target_arch = "wasm32"))]
 use rayon::prelude::*;
 use serde_json::Value;
 use std::fs;
@@ -32,6 +33,7 @@ pub fn load_translations(
     Ok(final_results)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn load_translations_parallel(
     translation_files_path: Vec<Box<PathBuf>>,
     results: Arc<parking_lot::Mutex<Vec<Translation>>>,
@@ -42,6 +44,25 @@ fn load_translations_parallel(
             entry_path.to_string_lossy()
         ));
     });
+
+    Ok(())
+}
+
+#[cfg(target_arch = "wasm32")]
+fn load_translations_parallel(
+    translation_files_path: Vec<Box<PathBuf>>,
+    results: Arc<parking_lot::Mutex<Vec<Translation>>>,
+) -> Result<(), LoadTranslationsFilesError> {
+    // WASM doesn't support rayon, use sequential processing
+    for entry_path in translation_files_path.iter() {
+        load_translation_file(&entry_path, results.clone()).map_err(|e| {
+            LoadTranslationsFilesError::UnableReadFormat(format!(
+                "Unable to process: {}. Error: {}",
+                entry_path.to_string_lossy(),
+                e
+            ))
+        })?;
+    }
 
     Ok(())
 }

@@ -1,3 +1,4 @@
+#[cfg(not(target_arch = "wasm32"))]
 use rayon::prelude::*;
 use regex::Regex;
 use std::fs;
@@ -59,11 +60,29 @@ fn search_recursive_parallel(
         .map(|entry| entry.path())
         .collect();
 
-    paths.par_iter().for_each(|entry_path| {
-        process_entry(&entry_path, regex.clone(), paths_to_skip, results.clone()).expect(
-            &format!("Unable to process: {}", entry_path.to_string_lossy()),
-        );
-    });
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        paths.par_iter().for_each(|entry_path| {
+            process_entry(&entry_path, regex.clone(), paths_to_skip, results.clone())
+                .expect(&format!(
+                    "Unable to process: {}",
+                    entry_path.to_string_lossy()
+                ));
+        });
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        for entry_path in paths.iter() {
+            process_entry(&entry_path, regex.clone(), paths_to_skip, results.clone())
+                .map_err(|e| {
+                    SearchAllTranslationsFilesError::UnableToReadPath(
+                        format!("Unable to process: {}", entry_path.to_string_lossy()),
+                        std::io::Error::other(e.to_string()),
+                    )
+                })?;
+        }
+    }
 
     Ok(())
 }
