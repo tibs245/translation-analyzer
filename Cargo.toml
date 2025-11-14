@@ -13,3 +13,7 @@ parking_lot = "0.12"
 serde = { version = "1.0.228", features = ["derive"] }
 once_cell = "1.21.3"
 clap = { version = "4.5.51", features = ["derive"] }
+
+[dev-dependencies]
+assert_fs = "1.1"
+predicates = "3.1"

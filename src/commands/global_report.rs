@@ -89,18 +89,142 @@ mod tests {
         assert!(path.to_string_lossy().contains("test"));
     }
 
-    // Note: Full integration tests for global_report_all and global_report_for_project
-    // would require setting up a test monorepo with translation files.
-    // Consider adding these in tests/ directory with tempfile and fixture files.
+    #[test]
+    fn test_global_report_for_project_integration() {
+        use assert_fs::TempDir;
+        use assert_fs::prelude::*;
+
+        // Create temporary directory structure
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create packages structure
+        let zimbra_dir = temp_dir.child("packages/manager/apps/zimbra");
+        zimbra_dir.create_dir_all().unwrap();
+
+        let mail_dir = temp_dir.child("packages/manager/apps/mail");
+        mail_dir.create_dir_all().unwrap();
+
+        let common_dir = temp_dir.child("packages/manager/modules/common-translations");
+        common_dir.create_dir_all().unwrap();
+
+        // Create translation files with sample content
+        zimbra_dir
+            .child("Messages_fr_FR.json")
+            .write_str(
+                r#"{
+                "welcome.title": "Bienvenue",
+                "error.message": "Une erreur s'est produite",
+                "duplicate.text": "Texte dupliqué"
+            }"#,
+            )
+            .unwrap();
+
+        mail_dir
+            .child("Messages_fr_FR.json")
+            .write_str(
+                r#"{
+                "mail.title": "Courrier",
+                "duplicate.text": "Texte dupliqué"
+            }"#,
+            )
+            .unwrap();
+
+        common_dir
+            .child("Messages_fr_FR.json")
+            .write_str(
+                r#"{
+                "common.button": "Bouton commun"
+            }"#,
+            )
+            .unwrap();
+
+        // Create settings
+        let settings = Settings {
+            common_translations_modules_path: vec![
+                "packages/manager/modules/common-translations".to_string(),
+            ],
+            translation_file_regex: r"Messages_fr_FR\.json$".to_string(),
+            skip_directories: vec![".git".to_string(), "node_modules".to_string()],
+        };
+
+        // Run the command - should not panic
+        let result = global_report_for_project(
+            temp_dir.path(),
+            settings,
+            "packages/manager/apps/zimbra",
+        );
+
+        // Assert it runs successfully
+        assert!(result.is_ok(), "global_report_for_project should succeed");
+
+        // Cleanup is automatic with TempDir
+    }
 
     #[test]
-    #[ignore] // Ignored by default as it requires file system setup
-    fn test_global_report_integration() {
-        // Example structure for integration test:
-        // 1. Create temporary directory with TempDir
-        // 2. Create sample translation files
-        // 3. Create Settings with appropriate regex
-        // 4. Call global_report_for_project
-        // 5. Assert results (would need to capture stdout or refactor for testability)
+    fn test_global_report_all_integration() {
+        use assert_fs::TempDir;
+        use assert_fs::prelude::*;
+
+        // Create temporary directory structure
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create packages structure
+        let zimbra_dir = temp_dir.child("packages/manager/apps/zimbra");
+        zimbra_dir.create_dir_all().unwrap();
+
+        let mail_dir = temp_dir.child("packages/manager/apps/mail");
+        mail_dir.create_dir_all().unwrap();
+
+        // Create translation files
+        zimbra_dir
+            .child("Messages_fr_FR.json")
+            .write_str(
+                r#"{
+                "app.title": "Application Zimbra"
+            }"#,
+            )
+            .unwrap();
+
+        mail_dir
+            .child("Messages_fr_FR.json")
+            .write_str(
+                r#"{
+                "app.title": "Application Mail"
+            }"#,
+            )
+            .unwrap();
+
+        // Create settings
+        let settings = Settings {
+            common_translations_modules_path: vec![],
+            translation_file_regex: r"Messages_fr_FR\.json$".to_string(),
+            skip_directories: vec![".git".to_string()],
+        };
+
+        // Run the command - should not panic
+        let result = global_report_all(temp_dir.path(), settings);
+
+        // Assert it runs successfully
+        assert!(result.is_ok(), "global_report_all should succeed");
+    }
+
+    #[test]
+    fn test_global_report_with_no_files() {
+        use assert_fs::TempDir;
+
+        // Create empty temporary directory
+        let temp_dir = TempDir::new().unwrap();
+
+        let settings = Settings {
+            common_translations_modules_path: vec![],
+            translation_file_regex: r"Messages_fr_FR\.json$".to_string(),
+            skip_directories: vec![],
+        };
+
+        // Run with no matching files - should handle gracefully
+        let result = global_report_all(temp_dir.path(), settings);
+
+        // Should succeed even with no files
+        assert!(result.is_ok(), "Should handle empty directory gracefully");
     }
 }

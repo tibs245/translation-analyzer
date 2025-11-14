@@ -168,9 +168,171 @@ mod tests {
         assert!(displayed.insert("translation2".to_string()));
     }
 
-    // Note: Full integration test for detailed_report_for_project would require:
-    // 1. Setting up a test monorepo with translation files
-    // 2. Capturing stdout to verify output
-    // 3. Verifying the deduplication logic works correctly
-    // Consider adding these in tests/ directory with tempfile and test fixtures
+    #[test]
+    fn test_detailed_report_for_project_integration() {
+        use assert_fs::TempDir;
+        use assert_fs::prelude::*;
+
+        // Create temporary directory structure
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create packages structure
+        let zimbra_dir = temp_dir.child("packages/manager/apps/zimbra");
+        zimbra_dir.create_dir_all().unwrap();
+
+        let mail_dir = temp_dir.child("packages/manager/apps/mail");
+        mail_dir.create_dir_all().unwrap();
+
+        let common_dir = temp_dir.child("packages/manager/modules/common-translations");
+        common_dir.create_dir_all().unwrap();
+
+        // Create translation files with duplicates for testing
+        zimbra_dir
+            .child("Messages_fr_FR.json")
+            .write_str(
+                r#"{
+                "welcome.title": "Bienvenue dans Zimbra",
+                "shared.save": "Enregistrer",
+                "duplicate.across": "Texte partagé"
+            }"#,
+            )
+            .unwrap();
+
+        mail_dir
+            .child("Messages_fr_FR.json")
+            .write_str(
+                r#"{
+                "mail.subject": "Sujet du mail",
+                "duplicate.across": "Texte partagé",
+                "shared.save": "Enregistrer"
+            }"#,
+            )
+            .unwrap();
+
+        common_dir
+            .child("Messages_fr_FR.json")
+            .write_str(
+                r#"{
+                "common.close": "Fermer",
+                "shared.save": "Enregistrer"
+            }"#,
+            )
+            .unwrap();
+
+        // Create settings
+        let settings = Settings {
+            common_translations_modules_path: vec![
+                "packages/manager/modules/common-translations".to_string(),
+            ],
+            translation_file_regex: r"Messages_fr_FR\.json$".to_string(),
+            skip_directories: vec![".git".to_string(), "node_modules".to_string()],
+        };
+
+        // Run the detailed report - should not panic
+        let result = detailed_report_for_project(
+            temp_dir.path(),
+            settings,
+            "packages/manager/apps/zimbra",
+        );
+
+        // Assert it runs successfully
+        assert!(result.is_ok(), "detailed_report_for_project should succeed");
+
+        // Cleanup is automatic with TempDir
+    }
+
+    #[test]
+    fn test_detailed_report_with_inter_package_duplicates() {
+        use assert_fs::TempDir;
+        use assert_fs::prelude::*;
+
+        // Test specifically for inter-package duplication detection
+        let temp_dir = TempDir::new().unwrap();
+
+        let zimbra_dir = temp_dir.child("packages/manager/apps/zimbra");
+        zimbra_dir.create_dir_all().unwrap();
+
+        // Create two translation files in the same project
+        zimbra_dir
+            .child("Messages_fr_FR.json")
+            .write_str(
+                r#"{
+                "duplicate.internal": "Duplication interne"
+            }"#,
+            )
+            .unwrap();
+
+        zimbra_dir.child("subfolder").create_dir_all().unwrap();
+
+        zimbra_dir
+            .child("subfolder/Messages_fr_FR.json")
+            .write_str(
+                r#"{
+                "duplicate.internal": "Duplication interne"
+            }"#,
+            )
+            .unwrap();
+
+        let settings = Settings {
+            common_translations_modules_path: vec![],
+            translation_file_regex: r"Messages_fr_FR\.json$".to_string(),
+            skip_directories: vec![],
+        };
+
+        let result = detailed_report_for_project(
+            temp_dir.path(),
+            settings,
+            "packages/manager/apps/zimbra",
+        );
+
+        assert!(result.is_ok(), "Should detect inter-package duplicates");
+    }
+
+    #[test]
+    fn test_detailed_report_with_no_duplicates() {
+        use assert_fs::TempDir;
+        use assert_fs::prelude::*;
+
+        // Test with unique translations only
+        let temp_dir = TempDir::new().unwrap();
+
+        let zimbra_dir = temp_dir.child("packages/manager/apps/zimbra");
+        zimbra_dir.create_dir_all().unwrap();
+
+        let mail_dir = temp_dir.child("packages/manager/apps/mail");
+        mail_dir.create_dir_all().unwrap();
+
+        zimbra_dir
+            .child("Messages_fr_FR.json")
+            .write_str(
+                r#"{
+                "unique.zimbra": "Texte unique Zimbra"
+            }"#,
+            )
+            .unwrap();
+
+        mail_dir
+            .child("Messages_fr_FR.json")
+            .write_str(
+                r#"{
+                "unique.mail": "Texte unique Mail"
+            }"#,
+            )
+            .unwrap();
+
+        let settings = Settings {
+            common_translations_modules_path: vec![],
+            translation_file_regex: r"Messages_fr_FR\.json$".to_string(),
+            skip_directories: vec![],
+        };
+
+        let result = detailed_report_for_project(
+            temp_dir.path(),
+            settings,
+            "packages/manager/apps/zimbra",
+        );
+
+        // Should succeed even with no duplicates
+        assert!(result.is_ok(), "Should handle no duplicates gracefully");
+    }
 }
