@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use crate::load_translations::Translation;
+use std::collections::HashMap;
 
 /// Recursively searches for regex matches in all files within a path
 /// Returns a vector of tuples: (file_path, line_number, matched_text)

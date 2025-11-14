@@ -1,7 +1,6 @@
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::str::FromStr;
-use serde::{Deserialize, Serialize};
-
 
 fn serialize_path_lossy<S>(path: &PathBuf, serializer: S) -> Result<S::Ok, S::Error>
 where
@@ -17,7 +16,6 @@ pub struct Translation {
     pub translations: String,
     pub key: String,
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
