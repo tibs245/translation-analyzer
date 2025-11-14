@@ -69,3 +69,38 @@ pub fn global_report_for_project(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_settings_default_values() {
+        let settings = Settings::default();
+        assert!(!settings.translation_file_regex.is_empty());
+        assert!(!settings.skip_directories.is_empty());
+        assert!(settings.skip_directories.contains(&".git".to_string()));
+    }
+
+    #[test]
+    fn test_path_handling() {
+        let path = PathBuf::from("/test/path");
+        assert!(path.to_string_lossy().contains("test"));
+    }
+
+    // Note: Full integration tests for global_report_all and global_report_for_project
+    // would require setting up a test monorepo with translation files.
+    // Consider adding these in tests/ directory with tempfile and fixture files.
+
+    #[test]
+    #[ignore] // Ignored by default as it requires file system setup
+    fn test_global_report_integration() {
+        // Example structure for integration test:
+        // 1. Create temporary directory with TempDir
+        // 2. Create sample translation files
+        // 3. Create Settings with appropriate regex
+        // 4. Call global_report_for_project
+        // 5. Assert results (would need to capture stdout or refactor for testability)
+    }
+}

@@ -88,3 +88,89 @@ fn add_star_if_own_package(package_path: &str, translations_path: &str) -> Strin
 
     "".to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_add_star_if_own_package_matches() {
+        // Test when the translation path belongs to the same package
+        let result = add_star_if_own_package(
+            "packages/manager/apps/zimbra",
+            "packages/manager/apps/zimbra/Messages_fr_FR.json",
+        );
+        assert_eq!(result, "**");
+    }
+
+    #[test]
+    fn test_add_star_if_own_package_no_match() {
+        // Test when the translation path belongs to a different package
+        let result = add_star_if_own_package(
+            "packages/manager/apps/zimbra",
+            "packages/manager/apps/mail/Messages_fr_FR.json",
+        );
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_add_star_if_own_package_modules_vs_apps() {
+        // Test different package types (modules vs apps)
+        let result = add_star_if_own_package(
+            "packages/manager/apps/zimbra",
+            "packages/manager/modules/common-translations/Messages_fr_FR.json",
+        );
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_add_star_if_own_package_same_module() {
+        // Test matching module paths
+        let result = add_star_if_own_package(
+            "packages/manager/modules/backup-agent",
+            "packages/manager/modules/backup-agent/translations/Messages_fr_FR.json",
+        );
+        assert_eq!(result, "**");
+    }
+
+    #[test]
+    fn test_add_star_if_own_package_nested_paths() {
+        // Test with nested directory structures
+        let result = add_star_if_own_package(
+            "packages/manager/apps/zimbra",
+            "packages/manager/apps/zimbra/src/components/Messages_fr_FR.json",
+        );
+        assert_eq!(result, "**");
+    }
+
+    #[test]
+    fn test_add_star_if_own_package_unknown_path() {
+        // Test with paths that don't match the expected pattern
+        let result = add_star_if_own_package(
+            "packages/manager/apps/zimbra",
+            "some/random/path/Messages_fr_FR.json",
+        );
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_hashset_deduplication() {
+        // Test HashSet behavior used in detailed_report_for_project
+        let mut displayed: HashSet<String> = HashSet::new();
+
+        // First insertion returns true
+        assert!(displayed.insert("translation1".to_string()));
+
+        // Duplicate insertion returns false
+        assert!(!displayed.insert("translation1".to_string()));
+
+        // Different value returns true
+        assert!(displayed.insert("translation2".to_string()));
+    }
+
+    // Note: Full integration test for detailed_report_for_project would require:
+    // 1. Setting up a test monorepo with translation files
+    // 2. Capturing stdout to verify output
+    // 3. Verifying the deduplication logic works correctly
+    // Consider adding these in tests/ directory with tempfile and test fixtures
+}
